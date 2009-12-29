@@ -123,7 +123,8 @@ class Mail_mimePart
     * @param string $body   The body of the mime part if any.
     * @param array  $params An associative array of parameters:
     *                content_type - The content type for this part eg multipart/mixed
-    *                encoding     - The encoding to use, 7bit, 8bit, base64, or quoted-printable
+    *                encoding     - The encoding to use, 7bit, 8bit,
+    *                               base64, or quoted-printable
     *                cid          - Content ID to apply
     *                disposition  - Content disposition, inline or attachment
     *                dfilename    - Optional filename parameter for content disposition
@@ -222,7 +223,7 @@ class Mail_mimePart
             $headers['Content-Type'] = 'text/plain';
         }
 
-        //Default encoding
+        // Default encoding
         if (!isset($this->_encoding)) {
             $this->_encoding = '7bit';
         }
@@ -250,20 +251,22 @@ class Mail_mimePart
 
         if (count($this->_subparts)) {
             $boundary = '=_' . md5(rand() . microtime());
-            $this->_headers['Content-Type'] .= ';' . MAIL_MIMEPART_CRLF . ' boundary="' . $boundary . '"';
+            $crlf = MAIL_MIMEPART_CRLF;
+
+            $this->_headers['Content-Type'] .= ";$crlf boundary=\"$boundary\"";
 
             $encoded['body'] = ''; 
 
             for ($i = 0; $i < count($this->_subparts); $i++) {
-                $encoded['body'] .= '--' . $boundary . MAIL_MIMEPART_CRLF;
+                $encoded['body'] .= '--' . $boundary . $crlf;
                 $tmp = $this->_subparts[$i]->encode();
                 foreach ($tmp['headers'] as $key => $value) {
-                    $encoded['body'] .= $key . ': ' . $value . MAIL_MIMEPART_CRLF;
+                    $encoded['body'] .= $key . ': ' . $value . $crlf;
                 }
-                $encoded['body'] .= MAIL_MIMEPART_CRLF . $tmp['body'] . MAIL_MIMEPART_CRLF;
+                $encoded['body'] .= $crlf . $tmp['body'] . $crlf;
             }
 
-            $encoded['body'] .= '--' . $boundary . '--' . MAIL_MIMEPART_CRLF;
+            $encoded['body'] .= '--' . $boundary . '--' . $crlf;
 
         } else {
             $encoded['body'] = $this->_getEncodedData($this->_body, $this->_encoding);
@@ -373,15 +376,15 @@ class Mail_mimePart
                 } elseif (($dec == 46) AND (($newline == '')
                     || ((strlen($newline) + strlen("=2E")) >= $line_max))
                 ) {
-                    //Bug #9722: convert full-stop at bol,
-                    //some Windows servers need this, won't break anything (cipri)
-                    //Bug #11731: full-stop at bol also needs to be encoded
-                    //if this line would push us over the line_max limit.
+                    // Bug #9722: convert full-stop at bol,
+                    // some Windows servers need this, won't break anything (cipri)
+                    // Bug #11731: full-stop at bol also needs to be encoded
+                    // if this line would push us over the line_max limit.
                     $char = '=2E';
                 }
 
-                //Note, when changing this line, also change the ($dec == 46)
-                //check line, as it mimics this line due to Bug #11731
+                // Note, when changing this line, also change the ($dec == 46)
+                // check line, as it mimics this line due to Bug #11731
                 // MAIL_MIMEPART_CRLF is not counted
                 if ((strlen($newline) + strlen($char)) >= $line_max) {
                     // soft line break; " =\r\n" is okay
@@ -392,7 +395,8 @@ class Mail_mimePart
             } // end of for
             $output .= $newline . $eol;
         }
-        $output = substr($output, 0, -1 * strlen($eol)); // Don't want last crlf
+        // Don't want last crlf
+        $output = substr($output, 0, -1 * strlen($eol));
         return $output;
     }
 
@@ -419,7 +423,9 @@ class Mail_mimePart
             && (!$charset || strtolower($charset) == 'us-ascii') // charset
             && (!$language || preg_match('/^(en|en-us)$/i', $language)) // language
         ) {
-            if (!preg_match('#([^\x21,\x23-\x27,\x2A,\x2B,\x2D,\x2E,\x30-\x39,\x41-\x5A,\x5E-\x7E])#', $value)) {
+            $token_regexp = '#([^\x21,\x23-\x27,\x2A,\x2B,\x2D'
+                . ',\x2E,\x30-\x39,\x41-\x5A,\x5E-\x7E])#';
+            if (!preg_match($token_regexp, $value)) {
                 // token
                 if (strlen($name) + strlen($value) + 3 <= $maxLength) {
                     return " {$name}={$value}";
@@ -474,7 +480,7 @@ class Mail_mimePart
      *
      * @param array $matches Preg_replace's matches array
      *
-     * @return string Encoded character string
+     * @return string        Encoded character string
      * @access private
      */
     function _encodeReplaceCallback($matches)
