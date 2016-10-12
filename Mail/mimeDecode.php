@@ -52,7 +52,7 @@
  * @author     Sean Coates <sean@php.net>
  * @copyright  2003-2006 PEAR <pear-group@php.net>
  * @license    http://www.opensource.org/licenses/bsd-license.php BSD License
- * @version    CVS: $Id$
+ * @version    CVS: $Id: mimeDecode.php 337165 2015-07-15 09:42:08Z alan_k $
  * @link       http://pear.php.net/package/Mail_mime
  */
 
@@ -166,7 +166,7 @@ class Mail_mimeDecode extends PEAR
      * @param string The input to decode
      * @access public
      */
-    function Mail_mimeDecode($input)
+    function __construct($input)
     {
         list($header, $body)   = $this->_splitBodyHeader($input);
 
@@ -177,6 +177,12 @@ class Mail_mimeDecode extends PEAR
         $this->_include_bodies = true;
         $this->_rfc822_bodies  = false;
     }
+    // BC
+    function Mail_mimeDecode($input)
+    {
+        $this->__construct($input);
+    }
+    
 
     /**
      * Begins the decoding process. If called statically
@@ -314,6 +320,14 @@ class Mail_mimeDecode extends PEAR
                     $encoding = isset($content_transfer_encoding) ? $content_transfer_encoding['value'] : '7bit';
                     $this->_include_bodies ? $return->body = ($this->_decode_bodies ? $this->_decodeBody($body, $encoding) : $body) : null;
                     break;
+                
+                case 'multipart/signed': // PGP
+                    $parts = $this->_boundarySplit($body, $content_type['other']['boundary'], true);
+                    $return->parts['msg_body'] = $parts[0]; 
+                    list($part_header, $part_body) = $this->_splitBodyHeader($parts[1]);
+                    $return->parts['sig_hdr'] = $part_header;
+                    $return->parts['sig_body'] = $part_body;
+                    break;
 
                 case 'multipart/parallel':
                 case 'multipart/appledouble': // Appledouble mail
@@ -322,6 +336,7 @@ class Mail_mimeDecode extends PEAR
                 case 'multipart/digest':
                 case 'multipart/alternative':
                 case 'multipart/related':
+                case 'multipart/relative': //#20431 - android
                 case 'multipart/mixed':
                 case 'application/vnd.wap.multipart.related':
                     if(!isset($content_type['other']['boundary'])){
@@ -693,7 +708,7 @@ class Mail_mimeDecode extends PEAR
      * @return array Contains array of resulting mime parts
      * @access private
      */
-    function _boundarySplit($input, $boundary)
+    function _boundarySplit($input, $boundary, $eatline = false)
     {
         $parts = array();
 
@@ -703,7 +718,10 @@ class Mail_mimeDecode extends PEAR
         if ($boundary == $bs_check) {
             $boundary = $bs_possible;
         }
-        $tmp = preg_split("/--".preg_quote($boundary, '/')."((?=\s)|--)/", $input);
+        // eatline is used by multipart/signed.
+        $tmp = $eatline ?
+            preg_split("/\r?\n--".preg_quote($boundary, '/')."(|--)\n/", $input) :
+            preg_split("/--".preg_quote($boundary, '/')."((?=\s)|--)/", $input);
 
         $len = count($tmp) -1;
         for ($i = 1; $i < $len; $i++) {
@@ -815,7 +833,10 @@ class Mail_mimeDecode extends PEAR
         $input = preg_replace("/=\r?\n/", '', $input);
 
         // Replace encoded characters
-		$input = preg_replace('/=([a-f0-9]{2})/ie', "chr(hexdec('\\1'))", $input);
+		 
+        $cb = create_function('$matches',  ' return chr(hexdec($matches[0]));');
+         
+        $input = preg_replace_callback( '/=([a-f0-9]{2})/i', $cb, $input);
 
         return $input;
     }
